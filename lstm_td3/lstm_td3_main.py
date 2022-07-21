@@ -7,15 +7,20 @@ import time
 import torch
 import torch.nn as nn
 from torch.optim import Adam
-from lstm_td3.utils.logx import EpochLogger, setup_logger_kwargs, colorize
+from utils.logx import EpochLogger, setup_logger_kwargs, colorize
 import itertools
-from lstm_td3.env_wrapper.pomdp_wrapper import POMDPWrapper
-from lstm_td3.env_wrapper.env import make_bullet_task
+from env_wrapper.pomdp_wrapper import POMDPWrapper
+from env_wrapper.env import make_bullet_task
 import os
 import os.path as osp
 import json
 from collections import namedtuple
 
+from utils.mt import GTrXL
+
+if torch.cuda.is_available():
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 class ReplayBuffer:
     """
@@ -146,6 +151,8 @@ class MLPCritic(nn.Module):
         for h in range(len(self.mem_lstm_layer_sizes) - 1):
             self.mem_lstm_layers += [
                 nn.LSTM(self.mem_lstm_layer_sizes[h], self.mem_lstm_layer_sizes[h + 1], batch_first=True)]
+        #    Transformer
+        # self.transformer = GTrXL(128,128,4,1024,2,0.1)
 
         #   After-LSTM
         self.mem_after_lstm_layer_size = [self.mem_lstm_layer_sizes[-1]] + list(mem_after_lstm_hid_size)
@@ -184,6 +191,9 @@ class MLPCritic(nn.Module):
         #    LSTM
         for layer in self.mem_lstm_layers:
             x, (lstm_hidden_state, lstm_cell_state) = layer(x)
+        #    Transformer
+        # x = self.transformer(x)
+
         #    After-LSTM
         for layer in self.mem_after_lstm_layers:
             x = layer(x)
@@ -243,6 +253,9 @@ class MLPActor(nn.Module):
         for h in range(len(self.mem_lstm_layer_sizes) - 1):
             self.mem_lstm_layers += [
                 nn.LSTM(self.mem_lstm_layer_sizes[h], self.mem_lstm_layer_sizes[h + 1], batch_first=True)]
+        #    Transformer
+        # self.transformer = GTrXL(128,128,4,1024,2,0.1)
+
         #   After-LSTM
         self.mem_after_lstm_layer_size = [self.mem_lstm_layer_sizes[-1]] + list(mem_after_lstm_hid_size)
         for h in range(len(self.mem_after_lstm_layer_size) - 1):
@@ -279,6 +292,9 @@ class MLPActor(nn.Module):
         #    LSTM
         for layer in self.mem_lstm_layers:
             x, (lstm_hidden_state, lstm_cell_state) = layer(x)
+        #    Transformer
+        # x = self.transformer(x)
+
         #    After-LSTM
         for layer in self.mem_after_lstm_layers:
             x = layer(x)
